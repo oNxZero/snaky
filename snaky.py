@@ -14,7 +14,7 @@ TAIL_CHAR = '▪ '
 VISION_CHAR = '· '
 
 SPEEDS = {
-    "Normal": 0.05, "Fast": 0.03, "Insane": 0.01, "WTF": 0.0001
+    "Normal": 0.05, "Fast": 0.03, "Insane": 0.01, "WTF": 0.001
 }
 SPEED_LIST = ["Normal", "Fast", "Insane", "WTF"]
 
@@ -79,7 +79,7 @@ class SnakeAI:
         self.vision_path = []
         self.prev_vision_path = []
 
-        self.stall_start_time = None
+        self.steps_since_food = 0
 
         self.head_history = deque(maxlen=200)
 
@@ -137,7 +137,7 @@ class SnakeAI:
         self.killer_pos = None
         self.vision_path = []
 
-        self.stall_start_time = None
+        self.steps_since_food = 0
 
         self.stdscr.clear()
         if not first_launch:
@@ -149,10 +149,12 @@ class SnakeAI:
 
     def print_centered(self, y, text, attr=0):
         try:
-            screen_width = self.max_x * 2
-            x = max(0, (screen_width // 2) - (len(text) // 2))
-            if 0 <= y < self.max_y:
-                self.stdscr.addstr(y, x, text, attr)
+            h, w = self.stdscr.getmaxyx()
+            line = text.center(w)
+            if len(line) > w - 1:
+                line = line[:w-1]
+            if 0 <= y < h:
+                self.stdscr.addstr(y, 0, line, attr)
         except: pass
 
     def spawn_food(self):
@@ -438,22 +440,21 @@ class SnakeAI:
                 old_tail = self.body[-1]
                 next_move = self.get_ai_move()
 
-                if "Stalling" in self.status_msg or "Panic" in self.status_msg:
-                    if self.stall_start_time is None:
-                        self.stall_start_time = time.time()
-                    elif time.time() - self.stall_start_time > 15:
-                        if self.score > self.high_score:
-                            self.high_score = self.score
-                        self.reset()
-                        continue
-                else:
-                    self.stall_start_time = None
+                self.steps_since_food += 1
+                starvation_limit = self.grid_area * 2
+
+                if self.steps_since_food > starvation_limit:
+                    if self.score > self.high_score:
+                        self.high_score = self.score
+                    self.reset()
+                    continue
 
                 if next_move:
                     self.body.insert(0, next_move)
                     if next_move == self.food:
                         self.score += 1
                         self.food = self.spawn_food()
+                        self.steps_since_food = 0
                     else:
                         self.body.pop()
                         if old_tail != next_move: self.erase_at(old_tail[0], old_tail[1])
